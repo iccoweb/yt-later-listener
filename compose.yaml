@@ -10,7 +10,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      MONGODB_URI: mongodb://ytll:${MONGO_PASSWORD:?set MONGO_PASSWORD in .env}@mongo:27017/ytll?authSource=admin
+      # The app builds (and URL-encodes) the connection string from these + MONGO_PASSWORD.
+      MONGO_HOST: mongo:27017
+      MONGO_USER: ytll
+      MONGO_PASSWORD: ${MONGO_PASSWORD:?set MONGO_PASSWORD in .env}
       DATA_DIR: /data
       PORT: "3000"
     ports:

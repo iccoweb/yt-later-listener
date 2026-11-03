@@ -8,7 +8,12 @@ const boolish = z
 
 const schema = z.object({
   PUBLIC_URL: z.url({ protocol: /^https?$/ }).transform((v) => v.replace(/\/+$/, "")),
-  MONGODB_URI: z.string().min(1).default("mongodb://localhost:27017/ytll"),
+  /** Full URI; when unset it's built from the MONGO_* parts below. */
+  MONGODB_URI: z.string().min(1).optional(),
+  MONGO_HOST: z.string().min(1).default("localhost:27017"),
+  MONGO_USER: z.string().min(1).optional(),
+  MONGO_PASSWORD: z.string().min(1).optional(),
+  MONGO_DB: z.string().min(1).default("ytll"),
   DATA_DIR: z.string().min(1).default("./data"),
   ADMIN_PASSWORD: z.string().min(12, "ADMIN_PASSWORD must be at least 12 characters"),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters"),
@@ -33,7 +38,10 @@ const schema = z.object({
   LOGIN_RATE_LIMIT_PER_15_MINUTES: z.coerce.number().int().positive().default(10),
 });
 
-export type Config = z.infer<typeof schema> & {
+type Env = z.infer<typeof schema>;
+
+export type Config = Env & {
+  MONGODB_URI: string;
   mediaDir: string;
   tmpDir: string;
   cookieSecure: boolean;
@@ -58,10 +66,20 @@ export function getConfig(): Config {
   cached = {
     ...c,
     DATA_DIR: dataDir,
+    MONGODB_URI: c.MONGODB_URI ?? buildMongoUri(c),
     mediaDir: path.join(dataDir, "media"),
     tmpDir: path.join(dataDir, "tmp"),
     cookieSecure: c.COOKIE_SECURE ?? c.PUBLIC_URL.startsWith("https://"),
     publicOrigin: new URL(c.PUBLIC_URL).origin,
   };
   return cached;
+}
+
+/** Percent-encodes credentials so passwords containing `#`, `@`, `/`… are safe. */
+function buildMongoUri(c: Env): string {
+  const auth = c.MONGO_USER
+    ? `${encodeURIComponent(c.MONGO_USER)}:${encodeURIComponent(c.MONGO_PASSWORD ?? "")}@`
+    : "";
+  const query = c.MONGO_USER ? "?authSource=admin" : "";
+  return `mongodb://${auth}${c.MONGO_HOST}/${encodeURIComponent(c.MONGO_DB)}${query}`;
 }
