@@ -26,6 +26,28 @@ export async function POST(req: NextRequest) {
   if (typeof password !== "string" || !checkPassword(password)) {
     return jsonError(401, "Incorrect password");
   }
+  if (insecureOriginForSecureCookie(req)) {
+    return jsonError(
+      400,
+      `Password accepted, but this page is plain http:// and the session cookie is HTTPS-only, so your browser would drop it. Open ${getConfig().PUBLIC_URL} instead, or set COOKIE_SECURE=false for LAN-only testing.`,
+    );
+  }
   await startSession();
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Browsers discard `Secure` cookies set from http:// pages (localhost excepted),
+ * which would otherwise look like a silent login loop.
+ */
+function insecureOriginForSecureCookie(req: NextRequest): boolean {
+  if (!getConfig().cookieSecure) return false;
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  try {
+    const { protocol, hostname } = new URL(origin);
+    return protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(hostname);
+  } catch {
+    return false;
+  }
 }
