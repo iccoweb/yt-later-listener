@@ -13,7 +13,8 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# public/ may be absent (git doesn't track empty dirs); the runtime stage copies it.
+RUN mkdir -p public && npm run build
 
 # ---- yt-dlp: fetch the standalone binary and verify its checksum -------------
 FROM debian:trixie-slim AS ytdlp
