@@ -1,0 +1,56 @@
+name: yt-later-listener
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        YTDLP_VERSION: ${YTDLP_VERSION:-latest}
+    image: yt-later-listener:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGODB_URI: mongodb://ytll:${MONGO_PASSWORD:?set MONGO_PASSWORD in .env}@mongo:27017/ytll?authSource=admin
+      DATA_DIR: /data
+      PORT: "3000"
+    ports:
+      # Bound to localhost by default so only your reverse proxy / tunnel can reach it.
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-3000}:3000"
+    volumes:
+      - media:/data
+    depends_on:
+      mongo:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks: [internal, egress]
+
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ytll
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?set MONGO_PASSWORD in .env}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    # No published ports and no internet access: only the app can reach it.
+    networks: [internal]
+
+networks:
+  internal:
+    internal: true
+  egress: {}
+
+volumes:
+  media:
+  mongo-data:
